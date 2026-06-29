@@ -26,3 +26,18 @@ Add a backtest command that calculates the mean absolute error in thousands of j
 
 - Added backtest command. (Used as is)
 
+
+someone cloned this project and tried to run fetch, they are running into:
+adptracker: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:992)>
+
+- Added two methods to fix this issue, removed one that was not a safe option.
+
+
+is it safe to use --insecure? and the other changes?
+
+- Checking the options
+
+
+remove the insecure
+
+- Removed the --insecure option
