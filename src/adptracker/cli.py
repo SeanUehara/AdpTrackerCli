@@ -4,11 +4,16 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import DEFAULT_CACHE_PATH, DEFAULT_HISTORY_PATH, DEFAULT_NATIONAL_CSV_URL
+from .backtest import backtest_forecast
+from .config import (
+    ADP_PRODUCTION_JSON_URL,
+    DEFAULT_CACHE_PATH,
+    DEFAULT_HISTORY_PATH,
+)
 from .dataset import load_points
-from .display import render_forecast, render_history
+from .display import render_backtest, render_forecast, render_history
 from .explain import explain_forecast
-from .fetch import fetch_national_csv
+from .fetch import fetch_national_csv, sync_latest_national_csv
 from .forecast import forecast_next_month
 
 
@@ -21,7 +26,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     fetch_parser = subparsers.add_parser("fetch", help="Download ADP national CSV data.")
-    fetch_parser.add_argument("--url", default=DEFAULT_NATIONAL_CSV_URL, help="ADP CSV URL.")
+    fetch_parser.add_argument(
+        "--metadata-url",
+        default=ADP_PRODUCTION_JSON_URL,
+        help="ADP production metadata URL used to discover the latest release.",
+    )
+    fetch_parser.add_argument(
+        "--url",
+        default=None,
+        help="Manual CSV URL override. When set, release-id checking is skipped.",
+    )
     fetch_parser.add_argument(
         "--output",
         type=Path,
@@ -41,6 +55,11 @@ def build_parser() -> argparse.ArgumentParser:
     explain_parser = subparsers.add_parser("explain", help="Explain the next-month forecast.")
     _add_data_argument(explain_parser)
 
+    backtest_parser = subparsers.add_parser(
+        "backtest", help="Backtest the next-month forecast and report MAE."
+    )
+    _add_data_argument(backtest_parser)
+
     return parser
 
 
@@ -50,8 +69,16 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.command == "fetch":
-            path = fetch_national_csv(args.url, args.output)
-            print(f"Downloaded ADP national data to {path}")
+            if args.url:
+                path = fetch_national_csv(args.url, args.output)
+                print(f"Downloaded ADP national data to {path}")
+                return 0
+
+            result = sync_latest_national_csv(
+                metadata_url=args.metadata_url,
+                output_path=args.output,
+            )
+            print(result.message)
             return 0
 
         points = load_points(_resolve_data_path(args.data))
@@ -60,6 +87,10 @@ def main(argv: list[str] | None = None) -> int:
             if args.last < 1:
                 parser.error("--last must be at least 1")
             print(render_history(points, args.last))
+            return 0
+
+        if args.command == "backtest":
+            print(render_backtest(backtest_forecast(points)))
             return 0
 
         forecast = forecast_next_month(points)

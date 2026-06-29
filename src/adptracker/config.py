@@ -5,6 +5,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PACKAGE_ROOT / "data"
 
 DEFAULT_RELEASE_ID = "20260603"
+ADP_PRODUCTION_JSON_URL = "https://adpemploymentreport.com/ner_production.json"
 DEFAULT_NATIONAL_CSV_URL = (
     f"https://adpemploymentreport.com/artifacts/us_ner/{DEFAULT_RELEASE_ID}/line_national.csv"
 )

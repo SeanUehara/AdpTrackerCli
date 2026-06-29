@@ -16,6 +16,9 @@ class EmploymentPoint:
     def private_employment_millions(self) -> float:
         return self.private_employment / 1_000_000
 
+_ADP_NER_HISTORY_COLUMNS = {"timestep", "agg_RIS", "category", "date", "NER_SA"}
+_LINE_NATIONAL_COLUMNS = {"date", "Private Employment"}
+
 
 def load_points(path: Path | str) -> list[EmploymentPoint]:
     csv_path = Path(path)
@@ -34,17 +37,17 @@ def load_points(path: Path | str) -> list[EmploymentPoint]:
 
 
 def latest_point(points: Iterable[EmploymentPoint]) -> EmploymentPoint:
-    ordered = sorted(points)
-    if not ordered:
+    try:
+        return max(points)
+    except ValueError:
         raise ValueError("No employment points available")
-    return ordered[-1]
 
 
 def _parse_rows(rows: list[dict[str, str]], fieldnames: list[str]) -> list[EmploymentPoint]:
-    if {"date", "Private Employment"}.issubset(fieldnames):
+    if _LINE_NATIONAL_COLUMNS.issubset(fieldnames):
         return [_point_from_values(row["date"], row["Private Employment"]) for row in rows]
 
-    if {"timestep", "agg_RIS", "category", "date", "NER_SA"}.issubset(fieldnames):
+    if _ADP_NER_HISTORY_COLUMNS.issubset(fieldnames):
         return [
             _point_from_values(row["date"], row["NER_SA"])
             for row in rows
