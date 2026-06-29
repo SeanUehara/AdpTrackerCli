@@ -14,16 +14,16 @@ python -m pip install -e .
 
 ## Commands
 
-Show the latest 12 monthly national values from the local data:
-
-```powershell
-python -m adptracker history --last 12
-```
-
 Download the national ADP artifact:
 
 ```powershell
 python -m adptracker fetch
+```
+
+Show the latest 12 monthly national values from the local data:
+
+```powershell
+python -m adptracker history --last 12
 ```
 
 Forecast the next month:
