@@ -1,7 +1,10 @@
 from pathlib import Path
+import ssl
 
+import adptracker.fetch as fetch_module
 from adptracker.fetch import (
     ReleaseInfo,
+    build_ssl_context,
     parse_release_info,
     sync_latest_national_csv,
     update_default_release_id,
@@ -29,14 +32,24 @@ def test_parse_release_info_finds_national_artifact() -> None:
 
 
 def test_sync_does_not_download_when_release_id_matches(tmp_path: Path) -> None:
-    def load_release(metadata_url: str, timeout: float) -> ReleaseInfo:
+    def load_release(
+        metadata_url: str,
+        timeout: float,
+        ssl_context: ssl.SSLContext | None,
+    ) -> ReleaseInfo:
+        assert ssl_context is None
         return ReleaseInfo(
             release_id="20260603",
             national_csv_url="https://example.com/line_national.csv",
             national_json_url="https://example.com/line_national.json",
         )
 
-    def fail_download(url: str, output_path: Path | str, timeout: float) -> Path:
+    def fail_download(
+        url: str,
+        output_path: Path | str,
+        timeout: float,
+        ssl_context: ssl.SSLContext | None,
+    ) -> Path:
         raise AssertionError("CSV should not download when release id matches")
 
     def fail_write(release_id: str) -> Path:
@@ -57,14 +70,25 @@ def test_sync_does_not_download_when_release_id_matches(tmp_path: Path) -> None:
 def test_sync_downloads_and_updates_when_release_id_changes(tmp_path: Path) -> None:
     calls: dict[str, str] = {}
 
-    def load_release(metadata_url: str, timeout: float) -> ReleaseInfo:
+    def load_release(
+        metadata_url: str,
+        timeout: float,
+        ssl_context: ssl.SSLContext | None,
+    ) -> ReleaseInfo:
+        assert ssl_context is None
         return ReleaseInfo(
             release_id="20260701",
             national_csv_url="https://example.com/20260701/line_national.csv",
             national_json_url="https://example.com/20260701/line_national.json",
         )
 
-    def download(url: str, output_path: Path | str, timeout: float) -> Path:
+    def download(
+        url: str,
+        output_path: Path | str,
+        timeout: float,
+        ssl_context: ssl.SSLContext | None,
+    ) -> Path:
+        assert ssl_context is None
         calls["download_url"] = url
         path = Path(output_path)
         path.write_text("date,Private Employment\n", encoding="utf-8")
@@ -99,3 +123,21 @@ def test_update_default_release_id_rewrites_config_constant(tmp_path: Path) -> N
     update_default_release_id("20260701", config_path)
 
     assert 'DEFAULT_RELEASE_ID = "20260701"' in config_path.read_text(encoding="utf-8")
+
+
+def test_build_ssl_context_returns_none_without_ca_file() -> None:
+    assert build_ssl_context() is None
+
+
+def test_build_ssl_context_uses_ca_file(monkeypatch) -> None:
+    calls: dict[str, str] = {}
+    expected_context = object()
+
+    def fake_create_default_context(*, cafile: str):
+        calls["cafile"] = cafile
+        return expected_context
+
+    monkeypatch.setattr(fetch_module.ssl, "create_default_context", fake_create_default_context)
+
+    assert build_ssl_context(ca_file="company-ca.pem") is expected_context
+    assert calls == {"cafile": "company-ca.pem"}

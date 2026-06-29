@@ -13,7 +13,7 @@ from .config import (
 from .dataset import load_points
 from .display import render_backtest, render_forecast, render_history
 from .explain import explain_forecast
-from .fetch import fetch_national_csv, sync_latest_national_csv
+from .fetch import build_ssl_context, fetch_national_csv, sync_latest_national_csv
 from .forecast import forecast_next_month
 
 
@@ -41,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_CACHE_PATH,
         help="Destination path for downloaded CSV.",
+    )
+    fetch_parser.add_argument(
+        "--ca-file",
+        type=Path,
+        default=None,
+        help="Path to a PEM CA bundle for environments with custom TLS roots.",
     )
 
     history_parser = subparsers.add_parser("history", help="Show historical values.")
@@ -70,13 +76,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "fetch":
             if args.url:
-                path = fetch_national_csv(args.url, args.output)
+                ssl_context = build_ssl_context(ca_file=args.ca_file)
+                path = fetch_national_csv(args.url, args.output, ssl_context=ssl_context)
                 print(f"Downloaded ADP national data to {path}")
                 return 0
 
             result = sync_latest_national_csv(
                 metadata_url=args.metadata_url,
                 output_path=args.output,
+                ca_file=args.ca_file,
             )
             print(result.message)
             return 0

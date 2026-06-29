@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import ssl
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -21,6 +22,9 @@ _DEFAULT_RELEASE_PATTERN = re.compile(
     r'(?m)^DEFAULT_RELEASE_ID\s*=\s*["\'](?P<release_id>\d{8})["\']'
 )
 
+ReleaseInfoLoader = Callable[[str, float, ssl.SSLContext | None], "ReleaseInfo"]
+Downloader = Callable[[str, Path | str, float, ssl.SSLContext | None], Path]
+
 
 @dataclass(frozen=True)
 class ReleaseInfo:
@@ -36,11 +40,12 @@ class FetchResult:
     downloaded: bool
     message: str
 
-#Tradeoff: Fetches from the ADP website. Can create an email and subscribe to the ADP National Employment Report to get updates.
+
 def fetch_national_csv(
     url: str = DEFAULT_NATIONAL_CSV_URL,
     output_path: Path | str = DEFAULT_CACHE_PATH,
     timeout: float = 30,
+    ssl_context: ssl.SSLContext | None = None,
 ) -> Path:
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -49,7 +54,7 @@ def fetch_national_csv(
         url,
         headers={"User-Agent": "adptracker/0.1"},
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(request, timeout=timeout, context=ssl_context) as response:
         content = response.read()
 
     destination.write_bytes(content)
@@ -61,15 +66,17 @@ def sync_latest_national_csv(
     metadata_url: str = ADP_PRODUCTION_JSON_URL,
     output_path: Path | str = DEFAULT_CACHE_PATH,
     timeout: float = 30,
-    release_info_loader: Callable[[str, float], ReleaseInfo] | None = None,
-    downloader: Callable[[str, Path | str, float], Path] | None = None,
+    ca_file: Path | str | None = None,
+    release_info_loader: ReleaseInfoLoader | None = None,
+    downloader: Downloader | None = None,
     release_id_writer: Callable[[str], Path] | None = None,
 ) -> FetchResult:
     loader = release_info_loader or fetch_latest_release_info
     download = downloader or fetch_national_csv
     write_release_id = release_id_writer or update_default_release_id
+    ssl_context = build_ssl_context(ca_file=ca_file)
 
-    release = loader(metadata_url, timeout)
+    release = loader(metadata_url, timeout, ssl_context)
     destination = Path(output_path)
 
     if release.release_id == current_release_id:
@@ -80,7 +87,7 @@ def sync_latest_national_csv(
             message=f"ADP release {release.release_id} is already current; no CSV downloaded.",
         )
 
-    csv_path = download(release.national_csv_url, destination, timeout)
+    csv_path = download(release.national_csv_url, destination, timeout, ssl_context)
     write_release_id(release.release_id)
     return FetchResult(
         release_id=release.release_id,
@@ -93,15 +100,25 @@ def sync_latest_national_csv(
 def fetch_latest_release_info(
     metadata_url: str = ADP_PRODUCTION_JSON_URL,
     timeout: float = 30,
+    ssl_context: ssl.SSLContext | None = None,
 ) -> ReleaseInfo:
     request = urllib.request.Request(
         metadata_url,
         headers={"User-Agent": "adptracker/0.1"},
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(request, timeout=timeout, context=ssl_context) as response:
         metadata = json.loads(response.read().decode("utf-8"))
 
     return parse_release_info(metadata)
+
+
+def build_ssl_context(
+    ca_file: Path | str | None = None,
+) -> ssl.SSLContext | None:
+    if ca_file is not None:
+        return ssl.create_default_context(cafile=str(ca_file))
+
+    return None
 
 
 def parse_release_info(metadata: dict[str, Any]) -> ReleaseInfo:

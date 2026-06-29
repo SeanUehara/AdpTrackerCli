@@ -20,6 +20,13 @@ Download the national ADP artifact:
 python -m adptracker fetch
 ```
 
+If your environment uses a corporate proxy or custom certificate authority, pass
+the trusted CA bundle:
+
+```powershell
+python -m adptracker fetch --ca-file C:\path\to\company-ca.pem
+```
+
 Show the latest 12 monthly national values from the local data:
 
 ```powershell
