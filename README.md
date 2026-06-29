@@ -20,8 +20,15 @@ Download the national ADP artifact:
 python -m adptracker fetch
 ```
 
-If your environment uses a corporate proxy or custom certificate authority, pass
-the trusted CA bundle:
+If `fetch` fails with a certificate verification error, first update Python's
+certificate bundle:
+
+```powershell
+python -m pip install --upgrade certifi
+```
+
+If the error continues and your environment uses a corporate proxy or custom
+certificate authority, pass the trusted CA bundle:
 
 ```powershell
 python -m adptracker fetch --ca-file C:\path\to\company-ca.pem
